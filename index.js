@@ -2,7 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const express = require('express');
 const pino = require('pino');
 const qrcodeTerminal = require('qrcode-terminal');
-const qrcode = require('qrcode'); // Tambahan untuk render QR ke Browser
+const qrcode = require('qrcode');
 
 const app = express();
 app.use(express.json());
@@ -16,7 +16,7 @@ async function connectToWhatsApp() {
     
     sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false, // Kita handle manual pakai qrcode-terminal
+        printQRInTerminal: false,
         logger: pino({ level: 'silent' })
     });
 
@@ -24,9 +24,7 @@ async function connectToWhatsApp() {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
-            qrCodeData = qr; // Simpan data string QR
-            
-            // 1. Cetak QR langsung di Terminal CMD
+            qrCodeData = qr;
             console.log('\n--- SCAN QR CODE DI BAWAH INI ---');
             qrcodeTerminal.generate(qr, { small: true });
             console.log('-----------------------------------');
@@ -42,7 +40,7 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             connectionStatus = 'CONNECTED';
-            qrCodeData = ''; // Hapus QR jika sudah terhubung
+            qrCodeData = '';
             console.log('WhatsApp Berhasil Terhubung!');
         }
     });
@@ -55,7 +53,7 @@ app.get('/', (req, res) => {
     res.send(`Status WA Gateway: <b>${connectionStatus}</b><br> <a href="/qr">Klik di sini untuk melihat QR Code via Browser</a>`);
 });
 
-// 2. Endpoint Khusus Tampilkan QR Code di Browser (Visual Gambar)
+// 2. Endpoint Khusus Tampilkan QR Code di Browser
 app.get('/qr', async (req, res) => {
     if (connectionStatus === 'CONNECTED') {
         return res.send('<h3>WhatsApp sudah terhubung! Tidak perlu scan QR lagi.</h3>');
@@ -77,20 +75,21 @@ app.get('/qr', async (req, res) => {
     }
 });
 
-// 3. Endpoint Utama Kirim Pesan
-app.post('/send-message', async (req, res) => {
-    const { target, message, token } = req.body;
-
-    if (token !== 'RAHASIA_SIGAS_2026') {
-        return res.status(403).json({ success: false, message: 'Unauthorized Token' });
-    }
+// 3. Endpoint Utama Kirim Pesan (Mendukung '/send' dan '/send-message')
+app.post(['/send', '/send-message'], async (req, res) => {
+    const { target, number, message, token } = req.body;
+    const destination = target || number; // Mendukung format payload dari GAS maupun manual
 
     if (connectionStatus !== 'CONNECTED') {
         return res.status(500).json({ success: false, message: 'WhatsApp belum terhubung/scan QR!' });
     }
 
+    if (!destination || !message) {
+        return res.status(400).json({ success: false, message: 'Nomor tujuan dan pesan wajib diisi!' });
+    }
+
     try {
-        let formattedTarget = target.toString().replace(/\D/g, '');
+        let formattedTarget = destination.toString().replace(/\D/g, '');
         if (formattedTarget.startsWith('0')) {
             formattedTarget = '62' + formattedTarget.substring(1);
         }
