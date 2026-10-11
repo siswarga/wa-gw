@@ -87,7 +87,7 @@ app.get('/qr', async (req, res) => {
 });
 
 app.post(['/send', '/send-message'], async (req, res) => {
-    // Tambahkan 'image' atau 'media' di sini agar terbaca dari body
+    // Gunakan req.body secara langsung untuk mencegah crash
     const { target, number, message, image, media } = req.body; 
     const destination = target || number;
     const mediaUrl = image || media; // Menangkap URL gambar
@@ -112,17 +112,14 @@ app.post(['/send', '/send-message'], async (req, res) => {
             jid = formattedTarget + '@s.whatsapp.net';
         }
 
-        // --- KONFIGURASI KIRIM PESAN DENGAN / TANPA GAMBAR ---
         let messagePayload = {};
 
         if (mediaUrl && mediaUrl.trim() !== '') {
-            // Jika ada gambar, kirim sebagai image dengan caption teks
             messagePayload = {
                 image: { url: mediaUrl },
                 caption: message
             };
         } else {
-            // Jika tidak ada gambar, kirim teks biasa
             messagePayload = { text: message };
         }
 
@@ -131,4 +128,10 @@ app.post(['/send', '/send-message'], async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: error.toString() });
     }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server berjalan di port ${PORT}`);
+    connectToWhatsApp();
 });
