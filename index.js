@@ -87,7 +87,7 @@ app.get('/qr', async (req, res) => {
 });
 
 app.post(['/send', '/send-message'], async (req, res) => {
-    const { target, number, message } = req.body;
+    const { target, number, message } = req.end || req.body; // Mengambil target/number dari body
     const destination = target || number;
 
     if (connectionStatus !== 'CONNECTED') {
@@ -95,11 +95,23 @@ app.post(['/send', '/send-message'], async (req, res) => {
     }
 
     try {
-        let formattedTarget = destination.toString().replace(/\D/g, '');
-        if (formattedTarget.startsWith('0')) {
-            formattedTarget = '62' + formattedTarget.substring(1);
+        let jid = '';
+        let cleanDest = String(destination).trim();
+
+        // --- DETEKSI APAKAH INI JID GRUP ATAU NOMOR PRIBADI ---
+        if (cleanDest.includes('@g.us')) {
+            // Jika grup, biarkan JID utuh tanpa dibersihkan
+            jid = cleanDest;
+        } else {
+            // Jika nomor pribadi, bersihkan dan format ke @s.whatsapp.net
+            let formattedTarget = cleanDest.replace(/\D/g, '');
+            if (formattedTarget.startsWith('0')) {
+                formattedTarget = '62' + formattedTarget.substring(1);
+            } else if (formattedTarget.startsWith('8')) {
+                formattedTarget = '62' + formattedTarget;
+            }
+            jid = formattedTarget + '@s.whatsapp.net';
         }
-        const jid = formattedTarget + '@s.whatsapp.net';
 
         await sock.sendMessage(jid, { text: message });
         res.json({ success: true, message: 'Pesan berhasil dikirim!' });
