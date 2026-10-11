@@ -87,8 +87,10 @@ app.get('/qr', async (req, res) => {
 });
 
 app.post(['/send', '/send-message'], async (req, res) => {
-    const { target, number, message } = req.end || req.body; // Mengambil target/number dari body
+    // Tambahkan 'image' atau 'media' di sini agar terbaca dari body
+    const { target, number, message, image, media } = req.body; 
     const destination = target || number;
+    const mediaUrl = image || media; // Menangkap URL gambar
 
     if (connectionStatus !== 'CONNECTED') {
         return res.status(500).json({ success: false, message: 'WhatsApp belum terhubung!' });
@@ -98,12 +100,9 @@ app.post(['/send', '/send-message'], async (req, res) => {
         let jid = '';
         let cleanDest = String(destination).trim();
 
-        // --- DETEKSI APAKAH INI JID GRUP ATAU NOMOR PRIBADI ---
         if (cleanDest.includes('@g.us')) {
-            // Jika grup, biarkan JID utuh tanpa dibersihkan
             jid = cleanDest;
         } else {
-            // Jika nomor pribadi, bersihkan dan format ke @s.whatsapp.net
             let formattedTarget = cleanDest.replace(/\D/g, '');
             if (formattedTarget.startsWith('0')) {
                 formattedTarget = '62' + formattedTarget.substring(1);
@@ -113,15 +112,23 @@ app.post(['/send', '/send-message'], async (req, res) => {
             jid = formattedTarget + '@s.whatsapp.net';
         }
 
-        await sock.sendMessage(jid, { text: message });
-        res.json({ success: true, message: 'Pesan berhasil dikirim!' });
+        // --- KONFIGURASI KIRIM PESAN DENGAN / TANPA GAMBAR ---
+        let messagePayload = {};
+
+        if (mediaUrl && mediaUrl.trim() !== '') {
+            // Jika ada gambar, kirim sebagai image dengan caption teks
+            messagePayload = {
+                image: { url: mediaUrl },
+                caption: message
+            };
+        } else {
+            // Jika tidak ada gambar, kirim teks biasa
+            messagePayload = { text: message };
+        }
+
+        await sock.sendMessage(jid, messagePayload);
+        res.json({ success: true, message: 'Pesan dan gambar berhasil dikirim!' });
     } catch (error) {
         res.status(500).json({ success: false, message: error.toString() });
     }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server berjalan di port ${PORT}`);
-    connectToWhatsApp();
 });
